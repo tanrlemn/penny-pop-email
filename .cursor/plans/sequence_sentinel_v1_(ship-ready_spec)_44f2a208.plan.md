@@ -182,4 +182,3 @@ Add to `src/config.ts`:
 - Implement savings classification producing {savingsTotal, partial, missing[]}
 - Implement Gist-backed PersistedState read/write with schema fallback
 - Implement analysis with reasonCode, partial handling, and non-partial lookback search window
-- Implement alert decisioning (weekly + RED cooldown + partial suppression)
