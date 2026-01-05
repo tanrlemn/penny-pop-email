@@ -34,7 +34,7 @@ export function analyze(snapshots: Snapshot[], todayISO: string): Status {
       level: "YELLOW",
       reasonCode: "BASELINE",
       lookbackDays,
-      reason: `Collecting baseline; no trend yet (need a non-partial snapshot near ${targetDate}).`,
+      reason: "We're collecting baseline data and don't yet have a reliable trend to evaluate.",
     };
   }
 

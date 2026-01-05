@@ -1,6 +1,25 @@
 import { config } from "./config";
 import { Snapshot, Status } from "./types";
 
+const usd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatUSD(amount: number): string {
+  return usd.format(amount);
+}
+
+function statusLineFor(status: Status): string {
+  if (status.reasonCode === "BASELINE") {
+    // Intentionally avoid "YELLOW" here; baseline is not a problem state.
+    return "Status: BASELINE (Collecting history)";
+  }
+  return `Status: ${status.level} (${status.reasonCode})`;
+}
+
 export function subjectFor(status: Status): string {
   if (status.level === "RED") return "Savings trend alert: action recommended";
   if (status.reasonCode === "MISSING_DATA") return "Savings update: data incomplete today";
@@ -18,7 +37,7 @@ export function recommendationFor(status: Status): string {
     return "Recommended: check the missing account connections and re-run tomorrow.";
   }
   if (status.reasonCode === "BASELINE") {
-    return "Recommended: no action needed; collecting baseline history.";
+    return "Recommendation: No action needed.";
   }
   if (status.reasonCode === "DOWN") {
     return "Recommended: tighten discretionary spending for the next 7 days.";
@@ -39,31 +58,35 @@ export function bodyFor(opts: {
   const lines: string[] = [];
 
   lines.push(`Date: ${todayISO}`);
-  lines.push(`Status: ${status.level} (${status.reasonCode})`);
+  lines.push(statusLineFor(status));
   lines.push("");
 
   const isPartial = todaySnapshot.partial === true;
   lines.push(
-    `Savings Total (today${isPartial ? ", provisional" : ""}): $${todaySnapshot.savingsTotal.toFixed(2)}`
+    `Savings Total (today${isPartial ? ", provisional" : ""}): ${formatUSD(todaySnapshot.savingsTotal)}`
   );
 
   if (typeof status.delta === "number") {
     lines.push(
-      `Change over last ${status.lookbackDays} days: ${status.delta >= 0 ? "+" : "-"}$${Math.abs(
-        status.delta
-      ).toFixed(2)}`
+      `Change over last ${status.lookbackDays} days: ${
+        status.delta >= 0 ? "+" : "-"
+      }${formatUSD(Math.abs(status.delta))}`
     );
   }
 
   if (typeof status.slopePerDay === "number") {
-    lines.push(`Weekly slope (avg/day): ${status.slopePerDay >= 0 ? "+" : "-"}$${Math.abs(status.slopePerDay).toFixed(2)}`);
+    lines.push(
+      `Weekly slope (avg/day): ${status.slopePerDay >= 0 ? "+" : "-"}${formatUSD(
+        Math.abs(status.slopePerDay)
+      )}`
+    );
   }
 
   if (typeof status.projectedMonthly === "number") {
     lines.push(
-      `Projected monthly change (at this pace): ${status.projectedMonthly >= 0 ? "+" : "-"}$${Math.abs(
-        status.projectedMonthly
-      ).toFixed(2)}`
+      `Projected monthly change (at this pace): ${
+        status.projectedMonthly >= 0 ? "+" : "-"
+      }${formatUSD(Math.abs(status.projectedMonthly))}`
     );
   }
 
@@ -82,7 +105,10 @@ export function bodyFor(opts: {
   lines.push("");
   lines.push(recommendationFor(status));
   lines.push("");
-  lines.push(`Tracked savings accounts: ${config.classification.savingsNames.join(", ")}`);
+  lines.push("Tracked savings accounts:");
+  for (const name of config.classification.savingsNames) {
+    lines.push(`• ${name}`);
+  }
 
   return lines.join("\n");
 }
