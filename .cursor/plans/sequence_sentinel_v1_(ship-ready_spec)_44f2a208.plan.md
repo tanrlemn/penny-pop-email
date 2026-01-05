@@ -4,41 +4,41 @@ overview: Ship-ready plan for a no-UI TypeScript sentinel that fetches Sequence 
 todos:
   - id: scaffold-project
     content: Create Node/TypeScript project files (package.json, tsconfig.json) and source layout under src/ plus README/.env.example.
-    status: pending
+    status: completed
   - id: sequence-client
     content: Implement Sequence POST /accounts client and normalize results into SequenceAccount[] with balanceDollars nullable.
-    status: pending
+    status: completed
     dependencies:
       - scaffold-project
   - id: classify-partial
     content: Compute savingsTotal from configured names and emit partial/missing[] when any tracked savings account balance is unavailable.
-    status: pending
+    status: completed
     dependencies:
       - sequence-client
   - id: gist-persisted-state
     content: Implement Gist persistence using PersistedState object {version,snapshots,lastAlert} with safe fallback on invalid/missing JSON.
-    status: pending
+    status: completed
     dependencies:
       - scaffold-project
   - id: analyze-reason-codes
     content: Implement analyzer that outputs level + reasonCode, computes delta/slope/projection only when today and lookback are non-partial, and uses a backward search window for a non-partial lookback snapshot.
-    status: pending
+    status: completed
     dependencies:
       - gist-persisted-state
       - classify-partial
   - id: alerts-cooldown
     content: Implement weekly summary + immediate RED with 2-day cooldown; suppress immediate RED when today is partial; update lastAlert only when an email is sent.
-    status: pending
+    status: completed
     dependencies:
       - analyze-reason-codes
   - id: email-templates
     content: Implement templates that render the right kind of YELLOW based on reasonCode and include missing-balance notes and projection metrics.
-    status: pending
+    status: completed
     dependencies:
       - alerts-cooldown
   - id: github-actions
     content: Add scheduled GitHub Actions workflow and document secrets plus steps to create the private Gist and Gist token.
-    status: pending
+    status: completed
     dependencies:
       - email-templates
 ---
@@ -183,4 +183,3 @@ Add to `src/config.ts`:
 - Implement Gist-backed PersistedState read/write with schema fallback
 - Implement analysis with reasonCode, partial handling, and non-partial lookback search window
 - Implement alert decisioning (weekly + RED cooldown + partial suppression)
-- Implement templates and Nodemailer sender
