@@ -10,7 +10,7 @@ No-UI savings trend sentinel that emails **GREEN / YELLOW / RED** based on wheth
   - GREEN: up meaningfully
   - YELLOW: flat, down-but-not-catastrophic, missing data, or baseline
   - RED: down more than the configured threshold
-- Sends a periodic summary email (configured in `src/config.ts`) and emails immediately on RED with a cooldown.
+- Sends an email every time it runs (cadence controlled by GitHub Actions cron).
 
 ## Setup
 

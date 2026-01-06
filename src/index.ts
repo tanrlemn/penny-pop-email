@@ -6,35 +6,13 @@ import { loadState, saveState, upsertSnapshot } from "./snapshotStore";
 import { analyze } from "./analyze";
 import { sendEmail } from "./email";
 import { bodyFor, subjectFor } from "./templates";
-import { PersistedStateV1, Snapshot } from "./types";
+import { Snapshot } from "./types";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function daysBetweenISO(olderISO: string, newerISO: string): number {
-  const a = new Date(olderISO + "T00:00:00Z").getTime();
-  const b = new Date(newerISO + "T00:00:00Z").getTime();
-  return Math.round((b - a) / (24 * 60 * 60 * 1000));
-}
-
-function isPeriodicCadence(now: Date): boolean {
-  const mode = config.cadence.emailPeriodicMode;
-  if (mode === "always") return true;
-  if (mode === "weekly") return now.getUTCDay() === config.cadence.emailWeeklyOnDay;
-  // twiceDaily
-  return config.cadence.emailTwiceDailyHoursUtc.includes(now.getUTCHours());
-}
-
-function shouldSuppressRedDueToCooldown(state: PersistedStateV1, today: string): boolean {
-  const last = state.lastAlert;
-  if (!last || last.level !== "RED") return false;
-  const diff = daysBetweenISO(last.date, today);
-  return diff <= config.alerts.redCooldownDays;
-}
-
 async function main() {
-  const now = new Date();
   const today = todayISO();
 
   const accounts = await fetchAccounts();
@@ -48,24 +26,6 @@ async function main() {
   await saveState({ ...state, snapshots: nextSnapshots });
 
   const status = analyze(nextSnapshots, today);
-
-  const periodic = isPeriodicCadence(now);
-  const baselineOnly = status.reasonCode === "BASELINE";
-  const missingData = status.reasonCode === "MISSING_DATA";
-
-  let shouldEmail = false;
-  if (periodic) {
-    shouldEmail = true;
-  } else if (baselineOnly || missingData) {
-    shouldEmail = false;
-  } else if (config.cadence.alwaysEmailOnRed && status.level === "RED") {
-    shouldEmail = !shouldSuppressRedDueToCooldown(state, today);
-  }
-
-  if (!shouldEmail) {
-    console.log(`[${today}] No email sent. Status=${status.level} (${status.reasonCode}).`);
-    return;
-  }
 
   // Use the just-written snapshot for email context (includes partial/missing).
   const snapForEmail: Snapshot = todaySnapshot;
