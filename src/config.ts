@@ -1,3 +1,5 @@
+type EmailPeriodicMode = "weekly" | "twiceDaily" | "always";
+
 export const config = {
   sequence: {
     apiUrl: 'https://api.getsequence.io/accounts',
@@ -22,7 +24,14 @@ export const config = {
     lookbackSearchWindowDays: 3,
   },
   cadence: {
-    emailWeeklyOnDay: 1, // Sunday = 0
+    // During testing we run this workflow twice per day; this controls the
+    // "periodic summary" emails (which bypass baseline/missing-data suppression).
+    //
+    // GitHub Actions cron uses UTC; the default workflow is scheduled around
+    // 00:13 and 12:13 UTC, so we use hours [0, 12] here.
+    emailPeriodicMode: "twiceDaily" as EmailPeriodicMode,
+    emailWeeklyOnDay: 1, // Sunday = 0 (used when emailPeriodicMode === "weekly")
+    emailTwiceDailyHoursUtc: [0, 12], // used when emailPeriodicMode === "twiceDaily"
     alwaysEmailOnRed: true,
   },
   email: {

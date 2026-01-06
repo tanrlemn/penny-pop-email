@@ -2,8 +2,9 @@ name: sequence-savings-sentinel
 
 on:
   schedule:
-    # Daily. GitHub Actions uses UTC.
-    - cron: "13 0 * * *"
+    # Twice daily. GitHub Actions uses UTC.
+    - cron: '13 0 * * *'
+    - cron: '13 12 * * *'
   workflow_dispatch: {}
 
 jobs:
@@ -43,5 +44,3 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-
-

@@ -18,8 +18,12 @@ function daysBetweenISO(olderISO: string, newerISO: string): number {
   return Math.round((b - a) / (24 * 60 * 60 * 1000));
 }
 
-function isWeeklyDay(now: Date): boolean {
-  return now.getUTCDay() === config.cadence.emailWeeklyOnDay;
+function isPeriodicCadence(now: Date): boolean {
+  const mode = config.cadence.emailPeriodicMode;
+  if (mode === "always") return true;
+  if (mode === "weekly") return now.getUTCDay() === config.cadence.emailWeeklyOnDay;
+  // twiceDaily
+  return config.cadence.emailTwiceDailyHoursUtc.includes(now.getUTCHours());
 }
 
 function shouldSuppressRedDueToCooldown(state: PersistedStateV1, today: string): boolean {
@@ -45,12 +49,12 @@ async function main() {
 
   const status = analyze(nextSnapshots, today);
 
-  const weekly = isWeeklyDay(now);
+  const periodic = isPeriodicCadence(now);
   const baselineOnly = status.reasonCode === "BASELINE";
   const missingData = status.reasonCode === "MISSING_DATA";
 
   let shouldEmail = false;
-  if (weekly) {
+  if (periodic) {
     shouldEmail = true;
   } else if (baselineOnly || missingData) {
     shouldEmail = false;
