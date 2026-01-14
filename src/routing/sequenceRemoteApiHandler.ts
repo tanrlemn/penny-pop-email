@@ -56,6 +56,12 @@ function centsFromDollars(d: number) {
   return Math.round(d * 100);
 }
 
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
 export type RemoteApiHandlerResult = { status: number; json: any };
 
 export async function handleSequenceRemoteApi(opts: {
@@ -73,6 +79,8 @@ export async function handleSequenceRemoteApi(opts: {
       return { status: 401, json: { error: "Unauthorized" } };
     }
   }
+
+  const dryRun = isTruthyEnv(process.env.ROUTING_DRY_RUN);
 
   await initDb();
 
@@ -101,12 +109,35 @@ export async function handleSequenceRemoteApi(opts: {
     maxAdjustmentPerDepositDollars: Number.isFinite(maxAdj) ? maxAdj : 200,
   });
 
+  const idempotencyKey = getIdempotencyKey(opts.headers, opts.body);
+  console.log(`[routing] dryRun=${dryRun} idempotencyKey=${idempotencyKey ? "present" : "missing"}`);
+
+  if (dryRun) {
+    const overridesWithRemaining = overrides.filter((o) => o.remainingDeposits != null);
+    const notes: string[] = [];
+    notes.push(`idempotencyKey=${idempotencyKey ? "present" : "missing"}`);
+    if (!idempotencyKey) {
+      notes.push("Without an idempotency key, overrides would not decrement.");
+    }
+    if (overridesWithRemaining.length) {
+      const overrideSummaries = overridesWithRemaining.map((o) => ({
+        id: o.id,
+        podName: o.podName,
+        remainingDeposits: o.remainingDeposits,
+        expiresOn: o.expiresOn ?? null,
+      }));
+      notes.push(`Overrides with remainingDeposits: ${JSON.stringify(overrideSummaries)}`);
+    } else {
+      notes.push("No overrides with remainingDeposits to decrement.");
+    }
+    return { status: 200, json: { dryRun: true, plan, notes } };
+  }
+
   const line = plan.lines.find((l) => l.podName === podName);
   const amountDollars = line?.amountDollars ?? 0;
   const amountInCents = centsFromDollars(amountDollars);
 
   // Best-effort: decrement remainingDeposits once per deposit event, if we can identify it.
-  const idempotencyKey = getIdempotencyKey(opts.headers, opts.body);
   if (idempotencyKey) {
     const inserted = await tryInsertDepositEvent({
       id: idempotencyKey,
