@@ -1,0 +1,48 @@
+[
+  {
+    "name": "Safety Net",
+    "monthlyBudgetDollars": 0,
+    "dueByDay": null,
+    "dueAmountDollars": null,
+    "bufferMonths": 0,
+    "priorityGroup": "SafetyNet",
+    "protected": true
+  },
+  {
+    "name": "Move to ___",
+    "monthlyBudgetDollars": 0,
+    "dueByDay": null,
+    "dueAmountDollars": null,
+    "bufferMonths": 0,
+    "priorityGroup": "Savings",
+    "protected": false
+  },
+  {
+    "name": "Car Payment",
+    "monthlyBudgetDollars": 410,
+    "dueByDay": 1,
+    "dueAmountDollars": 410,
+    "bufferMonths": 1,
+    "priorityGroup": "Necessities",
+    "protected": true
+  },
+  {
+    "name": "Groceries",
+    "monthlyBudgetDollars": 800,
+    "dueByDay": null,
+    "dueAmountDollars": null,
+    "bufferMonths": 0,
+    "priorityGroup": "Necessities",
+    "protected": false
+  },
+  {
+    "name": "Education",
+    "monthlyBudgetDollars": 200,
+    "dueByDay": 15,
+    "dueAmountDollars": 200,
+    "bufferMonths": 1,
+    "priorityGroup": "Kiddos",
+    "protected": false
+  }
+]
+

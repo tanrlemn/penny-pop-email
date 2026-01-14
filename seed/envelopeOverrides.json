@@ -1,0 +1,5 @@
+{
+  "Car Payment": { "dueByDay": 1, "bufferMonths": 1 },
+  "Rent": { "dueByDay": 1, "bufferMonths": 1 },
+  "Electric (AES)": { "dueByDay": 5, "bufferMonths": 1 }
+}
