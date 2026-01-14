@@ -1,0 +1,8 @@
+[
+  { "podName": "Car Payment", "bps": 1200 },
+  { "podName": "Education", "bps": 300 },
+  { "podName": "Groceries", "bps": 1800 },
+  { "podName": "Safety Net", "bps": 1200 },
+  { "podName": "Move to ___", "bps": 5500 }
+]
+
