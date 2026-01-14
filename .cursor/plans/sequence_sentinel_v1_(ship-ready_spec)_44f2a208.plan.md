@@ -79,9 +79,6 @@ todos:
 }
 ```
 
-
-
-
 - `lastAlert` is updated only when an email is actually sent.
 
 ## Data structures (TypeScript)
