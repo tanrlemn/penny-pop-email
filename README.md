@@ -59,4 +59,64 @@ npm run build
 node dist/index.js
 ```
 
+## Fixit (Gmail poller + rules engine)
+
+This repo now supports an email-first “Fixit” loop backed by Turso (SQLite/libSQL):
+- Gmail API polling (label-based)
+- Deterministic envelope engine (floors + due funding)
+- Plans labeled as Restore / Routing / Structural
+- `APPLY A/B/C` replies that store routing overrides and/or rule changes
+
+### Seed rules + routing baselines
+
+Edit the example seed files:
+- `seed/envelopeRules.example.json`
+- `seed/routingBaselines.example.json`
+
+Then run:
+
+```bash
+npm run seed
+```
+
+### Sync budgets from Google Sheet CSVs
+
+1) Export `expenses.csv` + `income.csv` from the Google Sheet and copy them into `data/`.
+2) (Optional) Adjust `seed/envelopeOverrides.json` or set `BUDGET_OVERRIDES_PATH`.
+3) Run:
+
+```bash
+npm run budget:sync
+```
+
+4) Verify the audit output totals + diffs, then run Fixit:
+
+```bash
+npm run fixit:dev
+```
+
+### Run the Fixit worker
+
+Set the env vars in `env.example` (especially Turso + Gmail OAuth2), then run:
+
+```bash
+npm run fixit:dev
+```
+
+This is intended to run on an always-on worker (e.g. a small DigitalOcean droplet). The weekly savings sentinel can continue to run via GitHub Actions.
+
+### Manual checklist
+- Transfer request: “I moved $80 from Groceries to Education” → ROUTING donor uses `Move to ___`, not a protected envelope (e.g. Car Payment).
+
+## Sequence Remote API (deposit routing)
+
+For Sequence “Remote API Action” amount lookup, deploy the `api/sequence-routing.ts` endpoint (Vercel recommended).
+
+You’ll configure one remote amount URL per transfer action, passing the destination pod name as a query param:
+
+- `.../api/sequence-routing?pod=Car%20Payment`
+- `.../api/sequence-routing?pod=Education`
+
+The endpoint returns `{ "amountInCents": <number> }` for that pod based on baseline bps + active overrides (with remainder flowing to `Move to ___`).
+
 

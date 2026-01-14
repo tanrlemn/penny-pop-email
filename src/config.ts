@@ -27,6 +27,7 @@ export const config = {
   },
   email: {
     to: process.env.EMAIL_TO!,
-    from: process.env.EMAIL_FROM!,
+    // Prefer Gmail identity for all outbound mail; fall back for legacy SMTP setups.
+    from: (process.env.GMAIL_USER_EMAIL ?? process.env.EMAIL_FROM ?? process.env.SMTP_USER)!,
   },
 };

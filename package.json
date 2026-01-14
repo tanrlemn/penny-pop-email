@@ -11,11 +11,17 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "dev": "npm run build && node -r dotenv/config dist/index.js"
+    "dev": "npm run build && node -r dotenv/config dist/index.js",
+    "fixit": "npm run build && node dist/fixit.js",
+    "fixit:dev": "npm run build && node -r dotenv/config dist/fixit.js",
+    "seed": "npm run build && node dist/seed.js",
+    "budget:sync": "npm run build && node -r dotenv/config dist/scripts/syncBudgetFromCsv.js data/expenses.csv data/income.csv"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.0",
     "dotenv": "^16.4.5",
-    "nodemailer": "^6.9.16"
+    "googleapis": "^170.0.0",
+    "nodemailer": "^7.0.12"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
@@ -23,5 +29,3 @@
     "typescript": "^5.6.3"
   }
 }
-
-
