@@ -119,4 +119,29 @@ You’ll configure one remote amount URL per transfer action, passing the destin
 
 The endpoint returns `{ "amountInCents": <number> }` for that pod based on baseline bps + active overrides (with remainder flowing to `Move to ___`).
 
+You can protect the endpoint by setting `SEQUENCE_REMOTE_API_SHARED_SECRET` and sending:
+- Header: `x-sequence-signature: Bearer <secret>`
+
+### Dry run mode
+Set `ROUTING_DRY_RUN=1` (or `true` / `yes`) to return the computed plan without mutating overrides. Example response:
+
+```json
+{
+  "dryRun": true,
+  "plan": {
+    "depositAmountDollars": 2500,
+    "lines": [
+      { "podName": "Car Payment", "bps": 1200, "amountDollars": 300 },
+      { "podName": "Move to ___", "bps": 8800, "amountDollars": 2200 }
+    ],
+    "catchAllPodName": "Move to ___",
+    "warnings": []
+  },
+  "notes": [
+    "idempotencyKey=present",
+    "Overrides with remainingDeposits: [{\"id\":\"ovr_123\",\"podName\":\"Car Payment\",\"remainingDeposits\":2,\"expiresOn\":null}]"
+  ]
+}
+```
+
 
