@@ -10,6 +10,7 @@ export type PriorityGroup =
 export interface EnvelopeRule {
   id: string;
   name: string; // must match Sequence pod name
+  aliases?: string[];
   monthlyBudgetDollars: number;
   dueByDay?: number | null; // 1-31
   dueAmountDollars?: number | null; // defaults to monthlyBudgetDollars

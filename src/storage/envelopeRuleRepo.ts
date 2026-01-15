@@ -7,9 +7,22 @@ function nowISO() {
 }
 
 function rowToRule(r: any): EnvelopeRule {
+  const aliasesRaw = r.aliases_json ?? r.aliasesJson ?? null;
+  let aliases: string[] | undefined;
+  if (typeof aliasesRaw === "string" && aliasesRaw.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(aliasesRaw);
+      if (Array.isArray(parsed)) {
+        aliases = parsed.map((v) => String(v)).filter((v) => v.trim().length > 0);
+      }
+    } catch {
+      aliases = undefined;
+    }
+  }
   return {
     id: String(r.id),
     name: String(r.name),
+    ...(aliases ? { aliases } : {}),
     monthlyBudgetDollars: Number(r.monthly_budget_dollars),
     dueByDay: r.due_by_day == null ? null : Number(r.due_by_day),
     dueAmountDollars: r.due_amount_dollars == null ? null : Number(r.due_amount_dollars),
@@ -37,11 +50,13 @@ export async function getEnvelopeRuleByName(name: string): Promise<EnvelopeRule 
 export async function upsertEnvelopeRule(input: Omit<EnvelopeRule, "id" | "updatedAtISO"> & { id?: string }): Promise<void> {
   const id = input.id ?? randomUUID();
   const updatedAtISO = nowISO();
+  const aliasesJson = Array.isArray(input.aliases) && input.aliases.length > 0 ? JSON.stringify(input.aliases) : null;
   await dbExec(
     `INSERT INTO envelope_rules(
-      id, name, monthly_budget_dollars, due_by_day, due_amount_dollars, buffer_months, priority_group, protected, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, name, aliases_json, monthly_budget_dollars, due_by_day, due_amount_dollars, buffer_months, priority_group, protected, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET
+      aliases_json=excluded.aliases_json,
       monthly_budget_dollars=excluded.monthly_budget_dollars,
       due_by_day=excluded.due_by_day,
       due_amount_dollars=excluded.due_amount_dollars,
@@ -52,6 +67,7 @@ export async function upsertEnvelopeRule(input: Omit<EnvelopeRule, "id" | "updat
     [
       id,
       input.name,
+      aliasesJson,
       input.monthlyBudgetDollars,
       input.dueByDay ?? null,
       input.dueAmountDollars ?? null,

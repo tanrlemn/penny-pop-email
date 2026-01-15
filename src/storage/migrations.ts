@@ -86,6 +86,11 @@ const migrations: Migration[] = [
       );`,
     ],
   },
+  {
+    version: 2,
+    name: "add_envelope_rule_aliases",
+    up: [`ALTER TABLE envelope_rules ADD COLUMN aliases_json TEXT NULL;`],
+  },
 ];
 
 function nowISO() {

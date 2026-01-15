@@ -10,11 +10,22 @@
   },
   {
     "name": "Move to ___",
+    "aliases": ["move to", "move to __", "move to ___"],
     "monthlyBudgetDollars": 0,
     "dueByDay": null,
     "dueAmountDollars": null,
     "bufferMonths": 0,
     "priorityGroup": "Savings",
+    "protected": false
+  },
+  {
+    "name": "Health",
+    "aliases": ["health"],
+    "monthlyBudgetDollars": 0,
+    "dueByDay": null,
+    "dueAmountDollars": null,
+    "bufferMonths": 0,
+    "priorityGroup": "Other",
     "protected": false
   },
   {

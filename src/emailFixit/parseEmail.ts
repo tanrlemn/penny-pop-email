@@ -1,3 +1,5 @@
+import { EnvelopeRule } from "../envelopes/types";
+
 export type Phase = "DEFAULT" | "PRE_TRIP" | "ON_TRIP";
 
 export interface ParsedEmailCommands {
@@ -25,6 +27,16 @@ export interface ParsedFixitEmail {
   commands: ParsedEmailCommands;
   mentionedEnvelopes: string[];
   transfer?: TransferHint;
+}
+
+export interface EnvelopeMatchEntry {
+  canonicalName: string;
+  normalizedMatch: string;
+}
+
+export interface EnvelopeMatchIndex {
+  entries: EnvelopeMatchEntry[];
+  normalizedByCanonical: Map<string, string[]>;
 }
 
 function parseApply(line: string): { option?: "A" | "B" | "C"; token?: string | null } | null {
@@ -92,6 +104,47 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+export function normalizeEnvelopeText(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/["']/g, "")
+    .replace(/_+/g, " ")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildNormalizedMatches(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    const normalized = normalizeEnvelopeText(v ?? "");
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+export function buildEnvelopeMatchIndex(rules: EnvelopeRule[]): EnvelopeMatchIndex {
+  const entries: EnvelopeMatchEntry[] = [];
+  const normalizedByCanonical = new Map<string, string[]>();
+
+  for (const rule of rules) {
+    const matches = buildNormalizedMatches([rule.name, ...(rule.aliases ?? [])]);
+    if (matches.length === 0) continue;
+    normalizedByCanonical.set(rule.name, matches);
+    for (const normalizedMatch of matches) {
+      entries.push({ canonicalName: rule.name, normalizedMatch });
+    }
+  }
+
+  return { entries, normalizedByCanonical };
+}
+
 function isOutlookHeaderBlockStart(lineTrimmed: string): boolean {
   // Common forwarded/replied header blocks:
   // From: ...
@@ -135,11 +188,9 @@ export function extractNewestMessageText(bodyText: string): string {
 }
 
 function findAllMatchesWithSpans(haystack: string, needle: string): Array<{ start: number; end: number }> {
-  // Boundary-aware, case-insensitive match:
-  // - preceding char is non-alnum (or start)
-  // - following char is non-alnum (or end)
+  if (!needle || !haystack) return [];
   const escaped = escapeRegExp(needle);
-  const re = new RegExp(`(^|[^A-Za-z0-9])(${escaped})(?=$|[^A-Za-z0-9])`, "gi");
+  const re = new RegExp(`(^|\\s)(${escaped})(?=$|\\s)`, "g");
   const spans: Array<{ start: number; end: number }> = [];
 
   let m: RegExpExecArray | null;
@@ -163,42 +214,69 @@ function spansOverlap(a: { start: number; end: number }, b: { start: number; end
  * - boundary match (case-insensitive)
  * - suppress overlaps so shorter names inside longer names don’t double-count
  */
-export function extractMentionedEnvelopes(cleanText: string, knownEnvelopeNames: string[]): string[] {
-  const namesSorted = knownEnvelopeNames.slice().sort((a, b) => b.length - a.length);
-  const picked: string[] = [];
+export function extractMentionedEnvelopes(cleanText: string, matchIndex: EnvelopeMatchIndex): string[] {
+  const normalizedText = normalizeEnvelopeText(cleanText);
+  const entriesSorted = matchIndex.entries.slice().sort((a, b) => b.normalizedMatch.length - a.normalizedMatch.length);
+  const picked: Array<{ canonical: string; start: number }> = [];
+  const pickedCanonical = new Set<string>();
   const usedSpans: Array<{ start: number; end: number }> = [];
 
-  for (const name of namesSorted) {
-    if (!name || !name.trim()) continue;
-    const spans = findAllMatchesWithSpans(cleanText, name);
+  for (const entry of entriesSorted) {
+    if (!entry.normalizedMatch) continue;
+    const spans = findAllMatchesWithSpans(normalizedText, entry.normalizedMatch);
     for (const span of spans) {
       if (usedSpans.some((s) => spansOverlap(s, span))) continue;
       usedSpans.push(span);
-      picked.push(name);
+      if (!pickedCanonical.has(entry.canonicalName)) {
+        pickedCanonical.add(entry.canonicalName);
+        picked.push({ canonical: entry.canonicalName, start: span.start });
+      }
       break; // only need to record the name once
     }
   }
 
-  // Preserve a stable order for downstream: sort by first occurrence in text.
-  picked.sort((a, b) => {
-    const ia = cleanText.toLowerCase().indexOf(a.toLowerCase());
-    const ib = cleanText.toLowerCase().indexOf(b.toLowerCase());
-    return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
-  });
-
-  return picked;
+  picked.sort((a, b) => a.start - b.start);
+  return picked.map((p) => p.canonical);
 }
 
-function bestEnvelopeMatch(fragment: string, knownEnvelopeNames: string[]): string | undefined {
-  const frag = fragment.trim();
+function bestEnvelopeMatch(fragment: string, matchIndex: EnvelopeMatchIndex): string | undefined {
+  const frag = normalizeEnvelopeText(fragment);
   if (!frag) return undefined;
-  const namesSorted = knownEnvelopeNames.slice().sort((a, b) => b.length - a.length);
-  for (const name of namesSorted) {
-    if (!name || !name.trim()) continue;
-    const spans = findAllMatchesWithSpans(frag, name);
-    if (spans.length > 0) return name;
+  const entriesSorted = matchIndex.entries.slice().sort((a, b) => b.normalizedMatch.length - a.normalizedMatch.length);
+  for (const entry of entriesSorted) {
+    if (!entry.normalizedMatch) continue;
+    const spans = findAllMatchesWithSpans(frag, entry.normalizedMatch);
+    if (spans.length > 0) return entry.canonicalName;
   }
   return undefined;
+}
+
+export function bestEnvelopeGuess(fragment: string, matchIndex: EnvelopeMatchIndex): string | undefined {
+  const frag = normalizeEnvelopeText(fragment);
+  if (!frag) return undefined;
+  const tokens = frag.split(" ").filter((t) => t.length >= 3);
+  if (tokens.length === 0) return undefined;
+
+  let best: { name: string; score: number; length: number } | null = null;
+  for (const [name, normalizedMatches] of matchIndex.normalizedByCanonical.entries()) {
+    let bestScore = 0;
+    let bestLength = 0;
+    for (const match of normalizedMatches) {
+      const matchTokens = match.split(" ").filter((t) => t.length > 0);
+      const tokenSet = new Set(matchTokens);
+      const score = tokens.reduce((acc, t) => acc + (tokenSet.has(t) ? 1 : 0), 0);
+      if (score > bestScore || (score === bestScore && match.length > bestLength)) {
+        bestScore = score;
+        bestLength = match.length;
+      }
+    }
+    if (bestScore <= 0) continue;
+    if (!best || bestScore > best.score || (bestScore === best.score && bestLength > best.length)) {
+      best = { name, score: bestScore, length: bestLength };
+    }
+  }
+
+  return best?.name;
 }
 
 function parseAmountDollars(text: string): number | undefined {
@@ -225,30 +303,36 @@ function parseAmountDollars(text: string): number | undefined {
   return undefined;
 }
 
-export function extractTransfer(cleanText: string, knownEnvelopeNames: string[]): TransferHint | undefined {
+export function extractTransferFragments(cleanText: string): { fromFragment?: string; toFragment?: string } {
+  const m1 = cleanText.match(/\bfrom\b\s*([^\n]{0,80}?)\s*\bto\b\s*([^\n]{0,80}?)(?:[\n.!?]|$)/i);
+  const m2 = !m1 ? cleanText.match(/([^\n]{0,80}?)\s*(?:->|→)\s*([^\n]{0,80}?)(?:[\n.!?]|$)/) : null;
+  return {
+    ...(m1 ? { fromFragment: m1[1], toFragment: m1[2] } : {}),
+    ...(m2 ? { fromFragment: m2[1], toFragment: m2[2] } : {}),
+  };
+}
+
+export function extractTransfer(cleanText: string, matchIndex: EnvelopeMatchIndex): TransferHint | undefined {
   const amount = parseAmountDollars(cleanText);
 
-  // from X to Y
-  const m1 = cleanText.match(/\bfrom\b\s*([^\n]{0,80}?)\s*\bto\b\s*([^\n]{0,80}?)(?:[\n.!?]|$)/i);
-  // X -> Y or X → Y
-  const m2 = !m1 ? cleanText.match(/([^\n]{0,80}?)\s*(?:->|→)\s*([^\n]{0,80}?)(?:[\n.!?]|$)/) : null;
+  const fragments = extractTransferFragments(cleanText);
+  const fromFrag = fragments.fromFragment ?? null;
+  const toFrag = fragments.toFragment ?? null;
 
-  const fromFrag = m1 ? m1[1] : m2 ? m2[1] : null;
-  const toFrag = m1 ? m1[2] : m2 ? m2[2] : null;
-
-  const from = fromFrag ? bestEnvelopeMatch(fromFrag, knownEnvelopeNames) : undefined;
-  const to = toFrag ? bestEnvelopeMatch(toFrag, knownEnvelopeNames) : undefined;
+  const from = fromFrag ? bestEnvelopeMatch(fromFrag, matchIndex) : undefined;
+  const to = toFrag ? bestEnvelopeMatch(toFrag, matchIndex) : undefined;
 
   if (amount == null && !from && !to) return undefined;
   return { amount, from, to };
 }
 
-export function parseFixitEmail(opts: { bodyText: string; knownEnvelopeNames: string[] }): ParsedFixitEmail {
+export function parseFixitEmail(opts: { bodyText: string; knownEnvelopeRules: EnvelopeRule[] }): ParsedFixitEmail {
   const cleanText = extractNewestMessageText(opts.bodyText);
   const cleanTextLower = cleanText.trim().toLowerCase();
   const commands = parseEmailCommands(cleanText);
-  const mentionedEnvelopes = extractMentionedEnvelopes(cleanText, opts.knownEnvelopeNames);
-  const transfer = extractTransfer(cleanText, opts.knownEnvelopeNames);
+  const matchIndex = buildEnvelopeMatchIndex(opts.knownEnvelopeRules);
+  const mentionedEnvelopes = extractMentionedEnvelopes(cleanText, matchIndex);
+  const transfer = extractTransfer(cleanText, matchIndex);
 
   return { cleanText, cleanTextLower, commands, mentionedEnvelopes, ...(transfer ? { transfer } : {}) };
 }
