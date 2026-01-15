@@ -30,6 +30,7 @@ async function main() {
       await upsertEnvelopeRule({
         id: r.id,
         name: r.name,
+        aliases: r.aliases,
         monthlyBudgetDollars: r.monthlyBudgetDollars,
         dueByDay: r.dueByDay ?? null,
         dueAmountDollars: r.dueAmountDollars ?? null,

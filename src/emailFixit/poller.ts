@@ -27,7 +27,13 @@ import {
 } from "./replyComposer";
 import { generateTransferPlans } from "./transferPlans";
 import { createGmailClient, fetchMessage, listUnreadFixitMessageIds, markMessageRead } from "./gmailClient";
-import { parseFixitEmail } from "./parseEmail";
+import {
+  bestEnvelopeGuess,
+  buildEnvelopeMatchIndex,
+  extractTransferFragments,
+  normalizeEnvelopeText,
+  parseFixitEmail,
+} from "./parseEmail";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -54,22 +60,21 @@ function dueDateThisMonthISO(todayISO_: string, dueByDay: number): string {
   return new Date(Date.UTC(y, m0, day)).toISOString().slice(0, 10);
 }
 
-function suggestEnvelopeMatches(cleanText: string, knownEnvelopeNames: string[], limit = 5): string[] {
-  const tokens = cleanText
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
+function suggestEnvelopeMatches(cleanText: string, matchIndex: ReturnType<typeof buildEnvelopeMatchIndex>, limit = 5): string[] {
+  const tokens = normalizeEnvelopeText(cleanText)
+    .split(" ")
     .map((t) => t.trim())
     .filter((t) => t.length >= 3);
   if (tokens.length === 0) return [];
 
-  const scored = knownEnvelopeNames
-    .map((name) => {
-      const lower = name.toLowerCase();
-      const score = tokens.reduce((acc, t) => acc + (lower.includes(t) ? 1 : 0), 0);
-      return { name, score };
+  const scored = Array.from(matchIndex.normalizedByCanonical.entries())
+    .map(([name, normalizedMatches]) => {
+      const score = tokens.reduce((acc, t) => acc + (normalizedMatches.some((m) => m.includes(t)) ? 1 : 0), 0);
+      const bestLen = normalizedMatches.reduce((acc, v) => Math.max(acc, v.length), 0);
+      return { name, score, bestLen };
     })
     .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    .sort((a, b) => b.score - a.score || b.bestLen - a.bestLen || a.name.localeCompare(b.name));
 
   return scored.slice(0, limit).map((s) => s.name);
 }
@@ -412,7 +417,7 @@ export async function pollFixitOnce(): Promise<void> {
   const ids = await listUnreadFixitMessageIds(gmail, { label, maxResults: 10 });
 
   const rulesForParsing = await listEnvelopeRules();
-  const knownEnvelopeNames = rulesForParsing.map((r) => r.name);
+  const matchIndex = buildEnvelopeMatchIndex(rulesForParsing);
 
   for (const id of ids) {
     const msg = await fetchMessage(gmail, id);
@@ -434,7 +439,7 @@ export async function pollFixitOnce(): Promise<void> {
       continue;
     }
 
-    const parsed = parseFixitEmail({ bodyText: msg.bodyText, knownEnvelopeNames });
+    const parsed = parseFixitEmail({ bodyText: msg.bodyText, knownEnvelopeRules: rulesForParsing });
     const task = classifyFixitEmail(parsed);
 
     await insertMessageLog({
@@ -559,12 +564,17 @@ export async function pollFixitOnce(): Promise<void> {
 
       if (!(typeof amount === "number" && amount > 0) || !from || !to) {
         const inReplyTo = msg.rfcMessageId ?? null;
-        const suggestions = suggestEnvelopeMatches(parsed.cleanText, knownEnvelopeNames);
+        const suggestions = suggestEnvelopeMatches(parsed.cleanText, matchIndex);
+        const fragments = extractTransferFragments(parsed.cleanText);
+        const guessFrom = from ?? (fragments.fromFragment ? bestEnvelopeGuess(fragments.fromFragment, matchIndex) : undefined);
+        const guessTo = to ?? (fragments.toFragment ? bestEnvelopeGuess(fragments.toFragment, matchIndex) : undefined);
+        const canGuess = typeof amount === "number" && amount > 0 && guessFrom && guessTo;
         const reply = composeTransferClarifyReply({
           amountDollars: typeof amount === "number" ? amount : undefined,
           fromEnvelope: from,
           toEnvelope: to,
-          suggestions,
+          ...(canGuess ? { guessFrom, guessTo } : {}),
+          ...(canGuess ? {} : { suggestions }),
           contextText: parsed.cleanText,
         });
         const replySubject = buildReplySubject(msg.subject, reply.subject);

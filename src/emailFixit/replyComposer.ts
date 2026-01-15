@@ -219,10 +219,25 @@ export function composeTransferClarifyReply(opts: {
   amountDollars?: number;
   fromEnvelope?: string;
   toEnvelope?: string;
+  guessFrom?: string;
+  guessTo?: string;
   suggestions?: string[];
   contextText?: string;
 }): { subject: string; text: string } {
   const lines: string[] = [];
+  const hasGuess =
+    typeof opts.amountDollars === "number" &&
+    opts.amountDollars > 0 &&
+    Boolean(opts.guessFrom) &&
+    Boolean(opts.guessTo);
+
+  if (hasGuess) {
+    lines.push(`I think you meant: from ${opts.guessFrom} to ${opts.guessTo} for ${formatUSD(opts.amountDollars!)}.`);
+    lines.push("Reply YES to confirm or restate.");
+    appendContextBlock(lines, opts.contextText);
+    return { subject: "Fixit: confirm transfer", text: lines.join("\n").trim() + "\n" };
+  }
+
   const bits: string[] = [];
   if (typeof opts.amountDollars === "number" && opts.amountDollars > 0) {
     bits.push(formatUSD(opts.amountDollars));
