@@ -1,10 +1,10 @@
 name: sequence-savings-sentinel
 
 on:
-  schedule:
-    # Twice daily. GitHub Actions uses UTC.
-    - cron: '13 0 * * *'
-    - cron: '13 12 * * *'
+  # schedule:
+  #   # Twice daily. GitHub Actions uses UTC.
+  #   - cron: '13 0 * * *'
+  #   - cron: '13 12 * * *'
   workflow_dispatch: {}
 
 jobs:
